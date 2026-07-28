@@ -2,8 +2,8 @@ import agent.memory.db as db_module
 from agent import decomposer, llm
 
 
-def test_bot_planner_creates_correct_steps(temp_dir, patcher):
-    patcher.setattr(db_module, "sqlite_file_location", str(temp_dir / "test.sqlite"))
+def test_bot_planner_creates_correct_steps(tmp_path, monkeypatch):
+    monkeypatch.setattr(db_module, "sqlite_file_location", str(tmp_path / "test.sqlite"))
     db_module.setup_tables()
 
     mocked_llm_reply = {
@@ -19,7 +19,7 @@ def test_bot_planner_creates_correct_steps(temp_dir, patcher):
         ],
     }
     
-    patcher.setattr(llm, "chat_json", lambda sys_prompt, user_prompt, retries=1: mocked_llm_reply)
+    monkeypatch.setattr(llm, "chat_json", lambda sys_prompt, user_prompt, retries=1: mocked_llm_reply)
 
     job_name, plan_steps = decomposer.break_down_command("Create an issue titled 'Fix login bug' with label 'needs-triage'")
 
@@ -29,8 +29,8 @@ def test_bot_planner_creates_correct_steps(temp_dir, patcher):
     assert plan_steps[0].params["title"] == "Fix login bug"
 
 
-def test_bot_planner_asks_for_new_tool(temp_dir, patcher):
-    patcher.setattr(db_module, "sqlite_file_location", str(temp_dir / "test.sqlite"))
+def test_bot_planner_asks_for_new_tool(tmp_path, monkeypatch):
+    monkeypatch.setattr(db_module, "sqlite_file_location", str(tmp_path / "test.sqlite"))
     db_module.setup_tables()
 
     mocked_llm_reply = {
@@ -46,7 +46,7 @@ def test_bot_planner_asks_for_new_tool(temp_dir, patcher):
         ],
     }
     
-    patcher.setattr(llm, "chat_json", lambda sys_prompt, user_prompt, retries=1: mocked_llm_reply)
+    monkeypatch.setattr(llm, "chat_json", lambda sys_prompt, user_prompt, retries=1: mocked_llm_reply)
 
     job_name, plan_steps = decomposer.break_down_command("Generate this week's triage summary")
 
