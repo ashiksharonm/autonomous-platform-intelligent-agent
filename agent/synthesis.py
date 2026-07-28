@@ -37,6 +37,7 @@ def check_code_safety(source_code):
 
     found_funcs = []
     for node in code_tree.body:
+        
         if isinstance(node, ast.FunctionDef):
             if node.name == "run":
                 found_funcs.append(node)
