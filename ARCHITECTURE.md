@@ -1,0 +1,27 @@
+# Architecture
+
+## What does the memory system store, and why is it structured this way?
+
+Two SQLite tables, no vector store. `capabilities` holds one row per operation the agent can perform, built-in or synthesized, with `success_count`, `failure_count`, `total_api_calls`, `total_latency_ms`, and a `known_constraints` JSON list (things like "label must exist before use in create_issue"). `runs` and `steps` hold every instruction ever executed, tagged with a `task_type` (a stable snake_case label like `create_labeled_issue`), the exact step sequence used, and per-step outcomes.
+
+I picked structured fields over embeddings on purpose. A vector store answers "what's semantically similar to this prompt," which is useful for retrieval and useless for deciding what to *do differently*. Repeat-detection here is exact `task_type` equality, not similarity search, because what needs to persist is the outcome of specific operations, not the prompt text. On a new instruction, `execution_memory.derive_guidance(task_type)` computes two concrete things from real history: `avoid_ops` (ops with a >50% failure rate for this task_type) and `preferred_decomposition` (the step sequence from the last fully successful run). Both feed the decomposition prompt. The part that actually matters is that `executor.apply_memory_guard()` also enforces them in plain Python, independent of whatever the LLM decides. If a chosen step uses an op in `avoid_ops` and a working alternative sequence exists, the executor swaps it in and logs the substitution. That guard is what makes this actively used to change behavior, rather than just stuffed into a prompt and hoped for.
+
+## How does capability synthesis work?
+
+Scoped narrowly, on purpose: one real gap, not a general code-generation engine. The decomposer's tool catalog only lists what's actually in `capabilities`. When an instruction needs something not in that catalog, the decomposer is instructed to emit a step with `op_name = "NEEDS_SYNTHESIS"`, a plain-English `capability_request`, and a stable `requested_op_name`, an explicit flag rather than string-matching luck.
+
+`synthesis.py` sends that request to Groq asking for exactly one function: `def run(repo, params: dict) -> dict`, restricted to `datetime`/`collections`/`re`, with any write call gated behind `if not params.get("dry_run")`. Before it's trusted, the code goes through two real checks: an AST walk that rejects disallowed imports, `eval`/`exec`/`open`, `os`/`subprocess` access, and dunder attribute access, then a dry-run against the actual target repo (read calls allowed, writes suppressed) that must return the right shape and reference real fetched data, not fabricated text. Two attempts, feeding the failure back to the model on retry, then it gives up honestly rather than pretending. Only after both checks pass does it get written into `capabilities` with the literal source stored as text. From then on it's a first-class catalog entry, and future runs skip generation and `exec()` the stored source directly.
+
+The one concrete example built for this is `triage_summary_by_label_and_staleness`: group open issues by label and inactivity window, post the result as a new issue. Nothing in PyGithub does that in one call, so it's a believable gap. This is explicitly a narrow, same-owner-token trust model. Running LLM-generated code is inherently risky, and the honest scoping here is "safe enough for one authenticated user's own repo," not a general sandbox for untrusted input.
+
+## What's the learning signal, and what changes between run 1 and run N?
+
+Two logged, real metrics: API calls per run and latency per run, both grouped by `task_type`, both pulled straight from the `runs`/`steps` tables (`python main.py stats <task_type>` prints them chronologically, no massaging).
+
+Concretely, for `create_labeled_issue`: GitHub's `create_issue` call rejects a label that doesn't exist yet on the repo (422). Run 1 hits that, recovers by creating the label then retrying, four API calls total, and the recovery gets written into `capabilities.known_constraints` for `create_issue`. Every run after that, the decomposer prompt already carries the constraint, and the code-level guard in `executor.py` means it doesn't even depend on the LLM remembering. The label gets created proactively and the issue is created clean on the first try. That's 4 calls down to 1 or 2, attributable to a specific stored fact, not vibes.
+
+The synthesis path shows the same mechanism from a different angle: run 1 of the triage-summary task pays for generation and a dry-run test (about 9 to 12 seconds of LLM round-trips), and run 2 finds the capability already registered, skips generation entirely, and runs in roughly a second. Same underlying idea, memory changing what the agent does, measured two different ways.
+
+## What I didn't build
+
+Agent core is deliberately simple: linear decomposition, no replanning loop, a fixed built-in tool vocabulary. That was a scope call, not an oversight. The assignment rewards depth on fewer things over shallow coverage of all four, and memory plus the learning signal were where I wanted the depth to live. Given more time, the next thing I'd build is a second synthesized capability to prove the gap-detection path generalizes beyond one hand-picked example, and a confidence score on decompositions so the agent can flag "I'm not sure this is the right task_type" instead of silently misclassifying a genuinely novel instruction.
