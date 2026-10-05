@@ -4,7 +4,7 @@ import time
 from agent import llm
 from agent.github_tools import fetch_my_repo
 from agent.memory import capability_memory
-from agent.models import JobStep, StepOutcome
+from agent.models import StepOutcome
 
 okay_imports = {"datetime", "collections", "re"}
 bad_functions = {"eval", "exec", "open", "__import__"}
@@ -33,7 +33,7 @@ def check_code_safety(source_code):
     try:
         code_tree = ast.parse(source_code)
     except SyntaxError as parse_err:
-        raise CodeMakerError("syntax error: " + str(parse_err))
+        raise CodeMakerError("syntax error: " + str(parse_err)) from parse_err
 
     found_funcs = []
     for node in code_tree.body:

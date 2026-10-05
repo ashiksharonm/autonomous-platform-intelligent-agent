@@ -1,8 +1,9 @@
 import json
 import re
+
 from groq import Groq
 
-from agent.config import my_groq_key, ai_model_name
+from agent.config import ai_model_name, my_groq_key
 
 active_groq_session = None
 
