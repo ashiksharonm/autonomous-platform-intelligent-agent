@@ -4,3 +4,6 @@ __pycache__/
 *.pyc
 data/*.sqlite
 .pytest_cache/
+.venv*/
+.ruff_cache/
+.DS_Store

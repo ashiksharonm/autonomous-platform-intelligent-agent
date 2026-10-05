@@ -65,7 +65,7 @@ def check_past_mistakes(job_type, step_list):
 
 def run_single_step(current_step):
     # this will execute a single step, handling both built-in tools and synthesized capabilities, while tracking API usage and latency.
-    from agent import synthesis 
+    from agent import synthesis
     
     start_time = time.monotonic()
     calls_left_start = get_api_quota()

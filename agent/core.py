@@ -1,11 +1,10 @@
-import json
 import uuid
 from datetime import datetime, timezone
 
 from agent import decomposer, executor, report
+from agent.github_tools import TOOL_REGISTRY
 from agent.memory import capability_memory, execution_memory
 from agent.memory.db import setup_tables
-from agent.github_tools import TOOL_REGISTRY
 
 
 def get_time_now():

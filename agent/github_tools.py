@@ -1,7 +1,8 @@
 from datetime import datetime, timezone
+
 from github import Github, GithubException
 
-from agent.config import git_pass_token, target_repo_name, max_old_days
+from agent.config import git_pass_token, max_old_days, target_repo_name
 
 active_gh_session = None
 

@@ -1,6 +1,7 @@
 import os
 import sqlite3
 from contextlib import contextmanager
+
 from agent.config import sqlite_file_location
 
 database_tables_sql = """

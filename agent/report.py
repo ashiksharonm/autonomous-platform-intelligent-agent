@@ -1,4 +1,4 @@
-from agent.models import JobStep, StepOutcome, FinalReport
+from agent.models import FinalReport
 
 
 def get_final_status(completed_steps_list):

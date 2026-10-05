@@ -1,7 +1,6 @@
-from agent.github_tools import TOOL_REGISTRY
+from agent import llm
 from agent.memory import capability_memory, execution_memory
 from agent.models import JobStep
-from agent import llm
 
 main_ai_rules = """You are the planning component of an autonomous GitHub agent. \
 Given a natural-language instruction, you decompose it into an ordered list of steps using \

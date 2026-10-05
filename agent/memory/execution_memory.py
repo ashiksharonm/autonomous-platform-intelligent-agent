@@ -1,5 +1,6 @@
 import json
 from datetime import datetime, timezone
+
 from agent.config import max_fail_percent
 from agent.memory.db import db_cursor
 
