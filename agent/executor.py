@@ -71,7 +71,7 @@ def run_single_step(current_step):
     calls_left_start = get_api_quota()
 
     if current_step.op_name == "NEEDS_SYNTHESIS":
-        out_res = synthesis.make_tool_and_run_it(current_step)
+        out_res = synthesis.synthesize_and_run(current_step)
         time_taken = int((time.monotonic() - start_time) * 1000)
         
         if out_res.latency_ms:
@@ -87,7 +87,7 @@ def run_single_step(current_step):
             func_to_run = tool_info["fn"]
             generated_data = func_to_run(fetch_my_repo(), current_step.params)
         elif db_tool is not None and db_tool["source"] == "synthesized":
-            func_to_run = synthesis.get_run_function(db_tool["code"])
+            func_to_run = synthesis.load_run_function(db_tool["code"])
             raw_out = func_to_run(fetch_my_repo(), current_step.params)
             
             if isinstance(raw_out, dict):
