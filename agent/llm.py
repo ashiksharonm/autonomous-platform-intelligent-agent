@@ -3,7 +3,7 @@ import re
 
 from groq import Groq
 
-from agent.config import ai_model_name, my_groq_key
+from agent.config import GROQ_API_KEY, GROQ_MODEL
 
 active_groq_session = None
 
@@ -11,7 +11,7 @@ active_groq_session = None
 def setup_groq():
     global active_groq_session
     if active_groq_session is None:
-        active_groq_session = Groq(api_key=my_groq_key)
+        active_groq_session = Groq(api_key=GROQ_API_KEY)
     return active_groq_session
 
 
@@ -37,7 +37,7 @@ def send_message(sys_prompt, user_msg, temp_val=0.0):
     client = setup_groq()
     
     api_response = client.chat.completions.create(
-        model=ai_model_name,
+        model=GROQ_MODEL,
         temperature=temp_val,
         messages=[
             {"role": "system", "content": sys_prompt},

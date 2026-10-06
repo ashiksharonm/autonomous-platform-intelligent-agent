@@ -3,13 +3,13 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from agent.config import target_repo_name
+from agent.config import GITHUB_REPO
 from agent.github_tools import create_gh_session
 
 
 def close_all_active_bugs():
     github_connection = create_gh_session()
-    target_repo = github_connection.get_repo(target_repo_name)
+    target_repo = github_connection.get_repo(GITHUB_REPO)
     
     found_issues = target_repo.get_issues(state="open")
     
