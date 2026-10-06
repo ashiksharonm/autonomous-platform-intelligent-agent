@@ -87,8 +87,7 @@ def run_single_step(current_step):
             func_to_run = tool_info["fn"]
             generated_data = func_to_run(fetch_my_repo(), current_step.params)
         elif db_tool is not None and db_tool["source"] == "synthesized":
-            func_to_run = synthesis.load_run_function(db_tool["code"])
-            raw_out = func_to_run(fetch_my_repo(), current_step.params)
+            raw_out = synthesis.execute_capability(db_tool["code"], current_step.params)
             
             if isinstance(raw_out, dict):
                 generated_data = raw_out

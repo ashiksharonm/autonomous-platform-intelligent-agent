@@ -1,21 +1,19 @@
-import ast
 import time
 
-from agent import llm
+from agent import config, llm, sandbox
 from agent.github_tools import fetch_my_repo
 from agent.memory import capability_memory
 from agent.models import StepOutcome
-
-ALLOWED_MODULES = {"datetime", "collections", "re"}
-FORBIDDEN_CALLS = {"eval", "exec", "open", "__import__"}
-FORBIDDEN_MODULES = ("os", "subprocess", "sys", "shutil")
+from agent.sandbox import SandboxError
 
 SYNTHESIS_SYSTEM_PROMPT = """You write a single Python function to fill a capability gap in an autonomous \
 GitHub agent. Requirements:
 - Signature MUST be exactly: def run(repo, params: dict) -> dict:
 - `repo` is an already-authenticated PyGithub Repository object. Use only its methods.
-- You may only use these modules (already available, do not import anything else): datetime, collections, re.
-- Do not use eval, exec, open, __import__, os, subprocess, sys, or shutil.
+- You may only use these modules: datetime, collections, re (import them normally, e.g. `import re`).
+- Do not use eval, exec, open, getattr, type, os, subprocess, sys, or shutil; do not use str.format
+  (use f-strings), classes, `with`, generators/yield, or any name/attribute/string containing `__`
+  or starting with `_`.
 - Any write/create call on `repo` (create_issue, create_comment, etc.) MUST be gated behind
   `if not params.get("dry_run"):`. In the dry_run branch, compute and return what WOULD be done
   without calling the write method, using real data fetched from `repo` (read calls are fine in
@@ -29,65 +27,18 @@ class SynthesisError(Exception):
     pass
 
 
-def validate_source(source):
+def execute_capability(source, params):
+    """Run synthesized `source` against the configured repo, honouring SANDBOX_MODE."""
+    if config.SANDBOX_MODE == "inprocess":
+        return sandbox.load_run_function(source)(fetch_my_repo(), params)
+    return sandbox.run_in_subprocess(source, params)
+
+
+def dry_run_check(source, params):
+    dry_params = dict(params)
+    dry_params["dry_run"] = True
     try:
-        tree = ast.parse(source)
-    except SyntaxError as exc:
-        raise SynthesisError(f"syntax error: {exc}") from exc
-
-    run_defs = [node for node in tree.body if isinstance(node, ast.FunctionDef) and node.name == "run"]
-    if not run_defs:
-        raise SynthesisError("no top-level function named 'run' found")
-
-    arg_names = [arg.arg for arg in run_defs[0].args.args]
-    if len(arg_names) < 2 or arg_names[0] != "repo" or arg_names[1] != "params":
-        raise SynthesisError(f"function signature must be run(repo, params), got run({', '.join(arg_names)})")
-
-    for node in ast.walk(tree):
-        if isinstance(node, (ast.Import, ast.ImportFrom)):
-            if isinstance(node, ast.Import):
-                module = node.names[0].name.split(".")[0]
-            else:
-                module = node.module.split(".")[0] if node.module else ""
-            if module not in ALLOWED_MODULES:
-                raise SynthesisError(f"disallowed import: {module}")
-
-        if isinstance(node, ast.Call):
-            func_name = getattr(node.func, "id", None)
-            if func_name in FORBIDDEN_CALLS:
-                raise SynthesisError(f"disallowed call: {func_name}")
-
-        if isinstance(node, ast.Attribute):
-            if isinstance(node.value, ast.Name) and node.value.id in FORBIDDEN_MODULES:
-                raise SynthesisError(f"disallowed attribute access on: {node.value.id}")
-            if node.attr.startswith("__") and node.attr.endswith("__"):
-                raise SynthesisError(f"disallowed dunder attribute access: {node.attr}")
-
-
-def load_run_function(source):
-    validate_source(source)
-
-    namespace = {}
-    safe_builtins = {
-        "len": len, "range": range, "sorted": sorted, "enumerate": enumerate,
-        "list": list, "dict": dict, "set": set, "str": str, "int": int, "float": float,
-        "bool": bool, "min": min, "max": max, "sum": sum, "isinstance": isinstance,
-        "getattr": getattr, "hasattr": hasattr, "zip": zip, "reversed": reversed,
-        "Exception": Exception, "ValueError": ValueError, "print": print,
-    }
-    exec(source, {"__builtins__": safe_builtins}, namespace)
-
-    run = namespace.get("run")
-    if run is None:
-        raise SynthesisError("generated module did not define 'run'")
-    return run
-
-
-def dry_run_check(run, repo, params):
-    try:
-        dry_params = dict(params)
-        dry_params["dry_run"] = True
-        result = run(repo, dry_params)
+        result = execute_capability(source, dry_params)
     except Exception as exc:
         return False, f"dry run raised: {exc}"
 
@@ -103,7 +54,6 @@ def get_or_synthesize(op_name, description, param_schema, max_attempts=2):
     if existing is not None and existing["source"] == "synthesized" and existing["code"]:
         return existing["code"], existing["signature_desc"]
 
-    repo = fetch_my_repo()
     base_prompt = f"Capability needed: {description}\nExpected params shape: {param_schema or {}}"
     last_error = ""
 
@@ -114,12 +64,12 @@ def get_or_synthesize(op_name, description, param_schema, max_attempts=2):
 
         source = llm.generate_code(SYNTHESIS_SYSTEM_PROMPT, prompt)
         try:
-            run = load_run_function(source)
-        except SynthesisError as exc:
+            sandbox.validate_source(source)
+        except SandboxError as exc:
             last_error = str(exc)
             continue
 
-        ok, reason = dry_run_check(run, repo, {})
+        ok, reason = dry_run_check(source, {})
         if not ok:
             last_error = reason
             continue
@@ -166,12 +116,10 @@ def synthesize_and_run(step):
             agent_decision="could not synthesize a working implementation after retries; reporting the gap instead of guessing",
         )
 
-    run = load_run_function(source)
-    repo = fetch_my_repo()
     try:
         params = dict(step.params)
         params["dry_run"] = False
-        result = run(repo, params)
+        result = execute_capability(source, params)
     except Exception as exc:
         latency_ms = _elapsed_ms(start)
         capability_memory.record_outcome(op_name, False, 1, latency_ms, "unknown")
