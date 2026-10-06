@@ -5,14 +5,14 @@ from groq import Groq
 
 from agent.config import GROQ_API_KEY, GROQ_MODEL
 
-active_groq_session = None
+_client = None
 
 
 def setup_groq():
-    global active_groq_session
-    if active_groq_session is None:
-        active_groq_session = Groq(api_key=GROQ_API_KEY)
-    return active_groq_session
+    global _client
+    if _client is None:
+        _client = Groq(api_key=GROQ_API_KEY)
+    return _client
 
 
 def clean_json_string(raw_text):
