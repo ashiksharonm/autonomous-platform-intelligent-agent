@@ -1,7 +1,7 @@
 import json
 from datetime import datetime, timezone
 
-from agent.config import max_fail_percent
+from agent.config import AVOID_OP_FAILURE_RATE
 from agent.memory.db import db_cursor
 
 
@@ -77,7 +77,7 @@ def derive_guidance(job_name):
         
         if total_uses > 0:
             fail_percent = bad_count / total_uses
-            if fail_percent > max_fail_percent:
+            if fail_percent > AVOID_OP_FAILURE_RATE:
                 bad_tools.append(tool)
 
     return {"preferred_decomposition": best_plan, "avoid_ops": bad_tools}

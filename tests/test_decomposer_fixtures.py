@@ -3,7 +3,7 @@ from agent import decomposer, llm
 
 
 def test_bot_planner_creates_correct_steps(tmp_path, monkeypatch):
-    monkeypatch.setattr(db_module, "sqlite_file_location", str(tmp_path / "test.sqlite"))
+    monkeypatch.setattr(db_module, "DB_PATH", str(tmp_path / "test.sqlite"))
     db_module.setup_tables()
 
     mocked_llm_reply = {
@@ -30,7 +30,7 @@ def test_bot_planner_creates_correct_steps(tmp_path, monkeypatch):
 
 
 def test_bot_planner_asks_for_new_tool(tmp_path, monkeypatch):
-    monkeypatch.setattr(db_module, "sqlite_file_location", str(tmp_path / "test.sqlite"))
+    monkeypatch.setattr(db_module, "DB_PATH", str(tmp_path / "test.sqlite"))
     db_module.setup_tables()
 
     mocked_llm_reply = {

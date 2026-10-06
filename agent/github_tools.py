@@ -2,7 +2,7 @@ from datetime import datetime, timezone
 
 from github import Github, GithubException
 
-from agent.config import git_pass_token, max_old_days, target_repo_name
+from agent.config import DEFAULT_STALE_DAYS, GITHUB_REPO, GITHUB_TOKEN
 
 active_gh_session = None
 
@@ -10,13 +10,13 @@ active_gh_session = None
 def create_gh_session():
     global active_gh_session
     if active_gh_session is None:
-        active_gh_session = Github(git_pass_token)
+        active_gh_session = Github(GITHUB_TOKEN)
     return active_gh_session
 
 
 def fetch_my_repo():
     session = create_gh_session()
-    return session.get_repo(target_repo_name)
+    return session.get_repo(GITHUB_REPO)
 
 
 def calls_remaining():
@@ -88,7 +88,7 @@ def write_issue_comment(target_repo, args_dict):
 def locate_old_issues(target_repo, args_dict):
     target_tag = args_dict["label"]
     
-    cutoff_days = max_old_days
+    cutoff_days = DEFAULT_STALE_DAYS
     if "stale_days" in args_dict:
         cutoff_days = args_dict["stale_days"]
         

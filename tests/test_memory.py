@@ -3,7 +3,7 @@ from agent.memory import capability_memory, execution_memory
 
 
 def test_tool_tracking_system(tmp_path, monkeypatch):
-    monkeypatch.setattr(db_module, "sqlite_file_location", str(tmp_path / "test.sqlite"))
+    monkeypatch.setattr(db_module, "DB_PATH", str(tmp_path / "test.sqlite"))
     db_module.setup_tables()
 
     capability_memory.ensure_builtin("create_issue", "Create an issue")
@@ -36,7 +36,7 @@ def test_tool_tracking_system(tmp_path, monkeypatch):
 
 
 def test_ai_learns_from_history(tmp_path, monkeypatch):
-    monkeypatch.setattr(db_module, "sqlite_file_location", str(tmp_path / "test.sqlite"))
+    monkeypatch.setattr(db_module, "DB_PATH", str(tmp_path / "test.sqlite"))
     db_module.setup_tables()
 
     job_category = "create_labeled_issue"
