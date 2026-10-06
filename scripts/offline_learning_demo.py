@@ -1,0 +1,150 @@
+"""Run the agent's learning loop fully offline and record what changes across runs.
+
+Everything external is faked (see agent/fake_github.py):
+  * GitHub -> FakeGitHub, an in-memory repo that counts every REST call.
+  * LLM    -> ScriptedPlanner / ScriptedCodeGenerator, deterministic and deliberately
+              naive (they ignore memory guidance), so improvements are attributable to
+              the agent's own code.
+Memory is a real SQLite file in a temp dir, exactly as in a live run. Each run resets
+the GitHub client to mimic a fresh `python main.py run ...` process.
+
+Usage:
+    python scripts/offline_learning_demo.py            # writes results/offline_learning_demo.{json,md}
+    python scripts/offline_learning_demo.py --no-write # print only
+"""
+
+import argparse
+import json
+import re
+import sys
+import tempfile
+from contextlib import contextmanager
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+from agent import config, core, github_tools, llm  # noqa: E402
+from agent.fake_github import FakeGitHub, ScriptedCodeGenerator, ScriptedPlanner  # noqa: E402
+from agent.memory import db  # noqa: E402
+
+RESULTS_DIR = Path(__file__).resolve().parent.parent / "results"
+
+
+@contextmanager
+def patched(obj, **attrs):
+    saved = {name: getattr(obj, name) for name in attrs}
+    for name, value in attrs.items():
+        setattr(obj, name, value)
+    try:
+        yield
+    finally:
+        for name, value in saved.items():
+            setattr(obj, name, value)
+
+
+def run_scenario(instructions, *, keep_memory=True, gh=None, workdir):
+    gh = gh or FakeGitHub()
+    planner, codegen = ScriptedPlanner(), ScriptedCodeGenerator()
+    rows, transcripts = [], []
+
+    with patched(llm, chat_json=planner, generate_code=codegen), patched(config, SANDBOX_MODE="inprocess"):
+        for index, instruction in enumerate(instructions, start=1):
+            db_file = Path(workdir) / ("memory.sqlite" if keep_memory else f"memory-run{index}.sqlite")
+            github_tools.reset_session()
+            github_tools._client = gh  # fresh "process", same repo state
+            calls_before, plans_before, gens_before = len(gh.calls), planner.calls, codegen.calls
+
+            with patched(db, DB_PATH=str(db_file)):
+                report = core.start_agent_job(instruction)
+
+            text = report.to_text().replace(report.run_id, f"run-{index}")
+            text = re.sub(r"latency_ms=\d+", "latency_ms=<fake>", text)
+            text = re.sub(r"Total latency: \d+ms", "Total latency: <fake>", text)
+            transcripts.append(f"$ python main.py run {json.dumps(instruction)}\n{text}\n")
+            rows.append({
+                "run": index,
+                "instruction": instruction,
+                "outcome": report.outcome,
+                "executed_ops": [result.step.op_name for result in report.step_results],
+                "github_calls": len(gh.calls) - calls_before,
+                "github_endpoints": gh.calls[calls_before:],
+                "agent_reported_api_calls": report.total_api_calls,
+                "llm_planning_calls": planner.calls - plans_before,
+                "llm_codegen_calls": codegen.calls - gens_before,
+            })
+    return rows, transcripts
+
+
+def labeled_issue_instructions():
+    # Runs 1-3 each use a label that does not exist yet, so the only thing that can make
+    # later runs cheaper is what the agent learned. Run 4 reuses an existing label.
+    labels = ["needs-triage", "needs-repro", "regression", "needs-repro"]
+    return [f"Create an issue titled 'Bug report {i}' with label '{label}'" for i, label in enumerate(labels, start=1)]
+
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--no-write", action="store_true")
+    args = parser.parse_args()
+
+    with tempfile.TemporaryDirectory() as tmp:
+        with_memory, transcript_a = run_scenario(labeled_issue_instructions(), keep_memory=True, workdir=Path(tmp) / "a")
+        without_memory, _ = run_scenario(labeled_issue_instructions(), keep_memory=False, workdir=Path(tmp) / "b")
+
+        gh = FakeGitHub()
+        gh.seed_issue("Login fails", ["bug"], days_since_update=30)
+        gh.seed_issue("Typo in docs", ["docs"], days_since_update=2)
+        gh.seed_issue("Crash on save", ["bug"], days_since_update=1)
+        triage, transcript_c = run_scenario(
+            ["Generate this week's triage summary"] * 2, keep_memory=True, gh=gh, workdir=Path(tmp) / "c"
+        )
+
+    results = {
+        "description": "Offline learning-loop demo: fake GitHub backend + scripted naive LLM. See scripts/offline_learning_demo.py.",
+        "create_labeled_issue_with_memory": with_memory,
+        "create_labeled_issue_without_memory": without_memory,
+        "triage_summary_synthesis": triage,
+    }
+
+    lines = [
+        "# Offline learning-loop demo",
+        "",
+        "Generated by `python scripts/offline_learning_demo.py`. GitHub is an in-memory fake that counts REST calls;",
+        "the LLM is a scripted, memory-ignoring stub. No network, no API keys. Latency is not reported because the",
+        "backend is fake.",
+        "",
+        "## create_labeled_issue (runs 1-3 use a brand-new label; run 4 reuses one)",
+        "",
+        "| run | label exists? | GitHub calls (memory kept) | GitHub calls (memory wiped each run) | executed ops (memory kept) | LLM planning calls (kept / wiped) |",
+        "|---|---|---|---|---|---|",
+    ]
+    for kept, wiped in zip(with_memory, without_memory, strict=True):
+        exists = "yes" if kept["run"] == 4 else "no"
+        lines.append(
+            f"| {kept['run']} | {exists} | {kept['github_calls']} | {wiped['github_calls']} | "
+            f"{' -> '.join(kept['executed_ops'])} | {kept['llm_planning_calls']} / {wiped['llm_planning_calls']} |"
+        )
+    lines += [
+        "",
+        "## triage_summary_by_label_and_staleness (capability synthesis)",
+        "",
+        "| run | outcome | LLM code-generation calls | GitHub calls | executed ops |",
+        "|---|---|---|---|---|",
+    ]
+    for row in triage:
+        lines.append(
+            f"| {row['run']} | {row['outcome']} | {row['llm_codegen_calls']} | {row['github_calls']} | {' -> '.join(row['executed_ops'])} |"
+        )
+    summary_md = "\n".join(lines) + "\n"
+    transcript = "\n".join(transcript_a + transcript_c)
+
+    print(summary_md)
+    if not args.no_write:
+        RESULTS_DIR.mkdir(exist_ok=True)
+        (RESULTS_DIR / "offline_learning_demo.json").write_text(json.dumps(results, indent=2) + "\n")
+        (RESULTS_DIR / "offline_learning_demo.md").write_text(summary_md)
+        (RESULTS_DIR / "offline_demo_transcript.txt").write_text(transcript)
+
+
+if __name__ == "__main__":
+    main()
