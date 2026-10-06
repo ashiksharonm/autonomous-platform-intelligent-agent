@@ -1,0 +1,192 @@
+{
+  "description": "Offline learning-loop demo: fake GitHub backend + scripted naive LLM. See scripts/offline_learning_demo.py.",
+  "create_labeled_issue_with_memory": [
+    {
+      "run": 1,
+      "instruction": "Create an issue titled 'Bug report 1' with label 'needs-triage'",
+      "outcome": "success",
+      "executed_ops": [
+        "create_issue"
+      ],
+      "github_calls": 5,
+      "github_endpoints": [
+        "GET /repos/{owner}/{repo}",
+        "POST /issues",
+        "GET /labels/{name}",
+        "POST /labels",
+        "POST /issues"
+      ],
+      "agent_reported_api_calls": 5,
+      "llm_planning_calls": 1,
+      "llm_codegen_calls": 0
+    },
+    {
+      "run": 2,
+      "instruction": "Create an issue titled 'Bug report 2' with label 'needs-repro'",
+      "outcome": "success",
+      "executed_ops": [
+        "ensure_label_exists",
+        "create_issue"
+      ],
+      "github_calls": 4,
+      "github_endpoints": [
+        "GET /repos/{owner}/{repo}",
+        "GET /labels/{name}",
+        "POST /labels",
+        "POST /issues"
+      ],
+      "agent_reported_api_calls": 4,
+      "llm_planning_calls": 2,
+      "llm_codegen_calls": 0
+    },
+    {
+      "run": 3,
+      "instruction": "Create an issue titled 'Bug report 3' with label 'regression'",
+      "outcome": "success",
+      "executed_ops": [
+        "ensure_label_exists",
+        "create_issue"
+      ],
+      "github_calls": 4,
+      "github_endpoints": [
+        "GET /repos/{owner}/{repo}",
+        "GET /labels/{name}",
+        "POST /labels",
+        "POST /issues"
+      ],
+      "agent_reported_api_calls": 4,
+      "llm_planning_calls": 2,
+      "llm_codegen_calls": 0
+    },
+    {
+      "run": 4,
+      "instruction": "Create an issue titled 'Bug report 4' with label 'needs-repro'",
+      "outcome": "success",
+      "executed_ops": [
+        "ensure_label_exists",
+        "create_issue"
+      ],
+      "github_calls": 3,
+      "github_endpoints": [
+        "GET /repos/{owner}/{repo}",
+        "GET /labels/{name}",
+        "POST /issues"
+      ],
+      "agent_reported_api_calls": 3,
+      "llm_planning_calls": 2,
+      "llm_codegen_calls": 0
+    }
+  ],
+  "create_labeled_issue_without_memory": [
+    {
+      "run": 1,
+      "instruction": "Create an issue titled 'Bug report 1' with label 'needs-triage'",
+      "outcome": "success",
+      "executed_ops": [
+        "create_issue"
+      ],
+      "github_calls": 5,
+      "github_endpoints": [
+        "GET /repos/{owner}/{repo}",
+        "POST /issues",
+        "GET /labels/{name}",
+        "POST /labels",
+        "POST /issues"
+      ],
+      "agent_reported_api_calls": 5,
+      "llm_planning_calls": 1,
+      "llm_codegen_calls": 0
+    },
+    {
+      "run": 2,
+      "instruction": "Create an issue titled 'Bug report 2' with label 'needs-repro'",
+      "outcome": "success",
+      "executed_ops": [
+        "create_issue"
+      ],
+      "github_calls": 5,
+      "github_endpoints": [
+        "GET /repos/{owner}/{repo}",
+        "POST /issues",
+        "GET /labels/{name}",
+        "POST /labels",
+        "POST /issues"
+      ],
+      "agent_reported_api_calls": 5,
+      "llm_planning_calls": 1,
+      "llm_codegen_calls": 0
+    },
+    {
+      "run": 3,
+      "instruction": "Create an issue titled 'Bug report 3' with label 'regression'",
+      "outcome": "success",
+      "executed_ops": [
+        "create_issue"
+      ],
+      "github_calls": 5,
+      "github_endpoints": [
+        "GET /repos/{owner}/{repo}",
+        "POST /issues",
+        "GET /labels/{name}",
+        "POST /labels",
+        "POST /issues"
+      ],
+      "agent_reported_api_calls": 5,
+      "llm_planning_calls": 1,
+      "llm_codegen_calls": 0
+    },
+    {
+      "run": 4,
+      "instruction": "Create an issue titled 'Bug report 4' with label 'needs-repro'",
+      "outcome": "success",
+      "executed_ops": [
+        "create_issue"
+      ],
+      "github_calls": 2,
+      "github_endpoints": [
+        "GET /repos/{owner}/{repo}",
+        "POST /issues"
+      ],
+      "agent_reported_api_calls": 2,
+      "llm_planning_calls": 1,
+      "llm_codegen_calls": 0
+    }
+  ],
+  "triage_summary_synthesis": [
+    {
+      "run": 1,
+      "instruction": "Generate this week's triage summary",
+      "outcome": "success",
+      "executed_ops": [
+        "NEEDS_SYNTHESIS"
+      ],
+      "github_calls": 4,
+      "github_endpoints": [
+        "GET /repos/{owner}/{repo}",
+        "GET /issues",
+        "GET /issues",
+        "POST /issues"
+      ],
+      "agent_reported_api_calls": 4,
+      "llm_planning_calls": 1,
+      "llm_codegen_calls": 1
+    },
+    {
+      "run": 2,
+      "instruction": "Generate this week's triage summary",
+      "outcome": "success",
+      "executed_ops": [
+        "NEEDS_SYNTHESIS"
+      ],
+      "github_calls": 3,
+      "github_endpoints": [
+        "GET /repos/{owner}/{repo}",
+        "GET /issues",
+        "POST /issues"
+      ],
+      "agent_reported_api_calls": 3,
+      "llm_planning_calls": 2,
+      "llm_codegen_calls": 0
+    }
+  ]
+}

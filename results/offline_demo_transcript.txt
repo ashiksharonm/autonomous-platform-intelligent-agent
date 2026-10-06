@@ -1,0 +1,79 @@
+$ python main.py run "Create an issue titled 'Bug report 1' with label 'needs-triage'"
+Run run-1 — task_type=create_labeled_issue
+Instruction: Create an issue titled 'Bug report 1' with label 'needs-triage'
+Outcome: success
+Total API calls: 5  |  Total latency: <fake>
+
+Steps:
+  [0] create_issue -> ok (api_calls=5, latency_ms=<fake>)
+      artifact.issue_url = https://github.invalid/fake/repo/issues/1
+      artifact.issue_number = 1
+      agent_decision: step failed validation; will attempt a targeted fix (e.g. create missing label) and retry once before giving up on this step (recovered: created missing label then retried)
+
+$ python main.py run "Create an issue titled 'Bug report 2' with label 'needs-repro'"
+Run run-2 — task_type=create_labeled_issue
+Instruction: Create an issue titled 'Bug report 2' with label 'needs-repro'
+Outcome: success
+Total API calls: 4  |  Total latency: <fake>
+
+Steps:
+  [0] ensure_label_exists -> ok (api_calls=3, latency_ms=<fake>)
+      artifact.label = needs-repro
+      artifact.created = True
+  [1] create_issue -> ok (api_calls=1, latency_ms=<fake>)
+      artifact.issue_url = https://github.invalid/fake/repo/issues/2
+      artifact.issue_number = 2
+
+$ python main.py run "Create an issue titled 'Bug report 3' with label 'regression'"
+Run run-3 — task_type=create_labeled_issue
+Instruction: Create an issue titled 'Bug report 3' with label 'regression'
+Outcome: success
+Total API calls: 4  |  Total latency: <fake>
+
+Steps:
+  [0] ensure_label_exists -> ok (api_calls=3, latency_ms=<fake>)
+      artifact.label = regression
+      artifact.created = True
+  [1] create_issue -> ok (api_calls=1, latency_ms=<fake>)
+      artifact.issue_url = https://github.invalid/fake/repo/issues/3
+      artifact.issue_number = 3
+
+$ python main.py run "Create an issue titled 'Bug report 4' with label 'needs-repro'"
+Run run-4 — task_type=create_labeled_issue
+Instruction: Create an issue titled 'Bug report 4' with label 'needs-repro'
+Outcome: success
+Total API calls: 3  |  Total latency: <fake>
+
+Steps:
+  [0] ensure_label_exists -> ok (api_calls=2, latency_ms=<fake>)
+      artifact.label = needs-repro
+      artifact.created = False
+  [1] create_issue -> ok (api_calls=1, latency_ms=<fake>)
+      artifact.issue_url = https://github.invalid/fake/repo/issues/4
+      artifact.issue_number = 4
+
+$ python main.py run "Generate this week's triage summary"
+Run run-1 — task_type=triage_summary_by_label_and_staleness
+Instruction: Generate this week's triage summary
+Outcome: success
+Total API calls: 4  |  Total latency: <fake>
+
+Steps:
+  [0] NEEDS_SYNTHESIS -> ok (api_calls=4, latency_ms=<fake>)
+      artifact.summary = Open issues by label:
+- bug: 1 fresh, 1 stale (>= 14d)
+- docs: 1 fresh, 0 stale (>= 14d)
+      artifact.actions_taken = ['created issue #4']
+
+$ python main.py run "Generate this week's triage summary"
+Run run-2 — task_type=triage_summary_by_label_and_staleness
+Instruction: Generate this week's triage summary
+Outcome: success
+Total API calls: 3  |  Total latency: <fake>
+
+Steps:
+  [0] NEEDS_SYNTHESIS -> ok (api_calls=3, latency_ms=<fake>)
+      artifact.summary = Open issues by label:
+- bug: 1 fresh, 1 stale (>= 14d)
+- docs: 1 fresh, 0 stale (>= 14d)
+      artifact.actions_taken = ['created issue #5']
