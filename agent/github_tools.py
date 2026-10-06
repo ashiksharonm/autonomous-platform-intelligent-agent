@@ -1,28 +1,54 @@
 from datetime import datetime, timezone
 
-from github import Github, GithubException
+from github import Auth, Github, GithubException
 
 from agent.config import DEFAULT_STALE_DAYS, GITHUB_REPO, GITHUB_TOKEN
 
-active_gh_session = None
+_client = None
+_repo = None
 
 
 def create_gh_session():
-    global active_gh_session
-    if active_gh_session is None:
-        active_gh_session = Github(GITHUB_TOKEN)
-    return active_gh_session
+    global _client
+    if _client is None:
+        _client = Github(auth=Auth.Token(GITHUB_TOKEN))
+    return _client
 
 
 def fetch_my_repo():
-    session = create_gh_session()
-    return session.get_repo(GITHUB_REPO)
+    """Return the target Repository, fetching it (one GET /repos call) once per process."""
+    global _repo
+    if _repo is None:
+        _repo = create_gh_session().get_repo(GITHUB_REPO)
+    return _repo
+
+
+def reset_session():
+    global _client, _repo
+    _client = None
+    _repo = None
 
 
 def calls_remaining():
-    session = create_gh_session()
-    rate_info = session.get_rate_limit()
-    return rate_info.core.remaining
+    # GET /rate_limit does not count against the core quota.
+    return create_gh_session().get_rate_limit().core.remaining
+
+
+def quota_snapshot():
+    try:
+        return calls_remaining()
+    except Exception:
+        return -1
+
+
+def calls_used_since(start_remaining):
+    """API calls consumed since `start_remaining`, falling back to 1 if the quota is unreadable."""
+    end_remaining = quota_snapshot()
+    if start_remaining < 0 or end_remaining < 0:
+        return 1
+    return max(start_remaining - end_remaining, 0)
+
+
 
 
 def count_days_passed(date_obj):
