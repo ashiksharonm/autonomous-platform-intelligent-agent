@@ -1,7 +1,8 @@
 import os
 import sqlite3
 from contextlib import contextmanager
-from agent.config import sqlite_file_location
+
+from agent.config import DB_PATH
 
 database_tables_sql = """
 CREATE TABLE IF NOT EXISTS capabilities (
@@ -50,7 +51,7 @@ CREATE INDEX IF NOT EXISTS idx_steps_run_id ON steps(run_id);
 
 
 def create_db_connection():
-    folder_path = os.path.dirname(sqlite_file_location)
+    folder_path = os.path.dirname(DB_PATH)
     
     # this will create the folder if it doesn't exist.
     if folder_path == "":
@@ -58,7 +59,7 @@ def create_db_connection():
     else:
         os.makedirs(folder_path, exist_ok=True)
         
-    my_conn = sqlite3.connect(sqlite_file_location)
+    my_conn = sqlite3.connect(DB_PATH)
     my_conn.row_factory = sqlite3.Row
     my_conn.execute("PRAGMA foreign_keys = ON")
     

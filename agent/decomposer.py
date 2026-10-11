@@ -1,9 +1,8 @@
-from agent.github_tools import TOOL_REGISTRY
+from agent import llm
 from agent.memory import capability_memory, execution_memory
 from agent.models import JobStep
-from agent import llm
 
-main_ai_rules = """You are the planning component of an autonomous GitHub agent. \
+PLANNER_SYSTEM_PROMPT = """You are the planning component of an autonomous GitHub agent. \
 Given a natural-language instruction, you decompose it into an ordered list of steps using \
 ONLY the tools in the catalog provided. Each tool call is a "step".
 
@@ -62,7 +61,7 @@ def break_down_command(user_text):
     
     prompt_for_ai = f"Tool catalog:\n{tools_text}\n\nInstruction: {user_text}\n\nRespond with the JSON object described in the system prompt."
     
-    ai_reply = llm.chat_json(main_ai_rules, prompt_for_ai)
+    ai_reply = llm.chat_json(PLANNER_SYSTEM_PROMPT, prompt_for_ai)
     job_category = ai_reply["task_type"]
     
     past_advice = execution_memory.derive_guidance(job_category)
@@ -81,7 +80,7 @@ def break_down_command(user_text):
         if len(bad_tools) > 0:
             extra_help_text = extra_help_text + f"- Avoid these ops if an alternative exists, they have failed often for this task: {bad_tools}\n"
             
-        ai_reply = llm.chat_json(main_ai_rules, prompt_for_ai + "\n\n" + extra_help_text)
+        ai_reply = llm.chat_json(PLANNER_SYSTEM_PROMPT, prompt_for_ai + "\n\n" + extra_help_text)
         job_category = ai_reply["task_type"]
         
     final_step_list = []

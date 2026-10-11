@@ -1,15 +1,20 @@
 import os
+
 from dotenv import load_dotenv
 
 load_dotenv()
 
-my_groq_key = os.environ.get("GROQ_API_KEY", "")
-ai_model_name = os.environ.get("GROQ_MODEL", "llama-3.3-70b-versatile")
+GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "")
+GROQ_MODEL = os.environ.get("GROQ_MODEL", "llama-3.3-70b-versatile")
 
-git_pass_token = os.environ.get("GITHUB_TOKEN", "")
-target_repo_name = os.environ.get("GITHUB_REPO", "")
+GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN", "")
+GITHUB_REPO = os.environ.get("GITHUB_REPO", "")
 
-sqlite_file_location = os.environ.get("AGENT_DB_PATH", "data/agent_memory.sqlite")
+DB_PATH = os.environ.get("AGENT_DB_PATH", "data/agent_memory.sqlite")
 
-max_old_days = 14
-max_fail_percent = 0.5
+# "subprocess" (default) runs synthesized code in a resource-limited child process;
+# "inprocess" execs it in the agent process (used by the offline demo harness).
+SANDBOX_MODE = os.environ.get("AGENT_SANDBOX_MODE", "subprocess")
+
+DEFAULT_STALE_DAYS = 14
+AVOID_OP_FAILURE_RATE = 0.5

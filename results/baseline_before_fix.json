@@ -1,0 +1,62 @@
+[
+ {
+  "run": 1,
+  "github_calls": 6,
+  "agent_reported_api_calls": 3,
+  "executed_ops": [
+   "create_issue"
+  ],
+  "github_endpoints": [
+   "GET /repos/{owner}/{repo}",
+   "POST /issues",
+   "GET /repos/{owner}/{repo}",
+   "GET /labels/{name}",
+   "POST /labels",
+   "POST /issues"
+  ]
+ },
+ {
+  "run": 2,
+  "github_calls": 6,
+  "agent_reported_api_calls": 3,
+  "executed_ops": [
+   "create_issue"
+  ],
+  "github_endpoints": [
+   "GET /repos/{owner}/{repo}",
+   "POST /issues",
+   "GET /repos/{owner}/{repo}",
+   "GET /labels/{name}",
+   "POST /labels",
+   "POST /issues"
+  ]
+ },
+ {
+  "run": 3,
+  "github_calls": 6,
+  "agent_reported_api_calls": 3,
+  "executed_ops": [
+   "create_issue"
+  ],
+  "github_endpoints": [
+   "GET /repos/{owner}/{repo}",
+   "POST /issues",
+   "GET /repos/{owner}/{repo}",
+   "GET /labels/{name}",
+   "POST /labels",
+   "POST /issues"
+  ]
+ },
+ {
+  "run": 4,
+  "github_calls": 2,
+  "agent_reported_api_calls": 2,
+  "executed_ops": [
+   "create_issue"
+  ],
+  "github_endpoints": [
+   "GET /repos/{owner}/{repo}",
+   "POST /issues"
+  ]
+ }
+]

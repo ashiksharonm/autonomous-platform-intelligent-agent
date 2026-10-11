@@ -1,11 +1,10 @@
-import json
 import uuid
 from datetime import datetime, timezone
 
 from agent import decomposer, executor, report
+from agent.github_tools import TOOL_REGISTRY
 from agent.memory import capability_memory, execution_memory
 from agent.memory.db import setup_tables
-from agent.github_tools import TOOL_REGISTRY
 
 
 def get_time_now():
@@ -25,7 +24,7 @@ def start_agent_job(user_command):
     time_started = get_time_now()
 
     job_category, plan_steps = decomposer.break_down_command(user_command)
-    safe_steps = executor.check_past_mistakes(job_category, plan_steps)
+    safe_steps = executor.apply_memory_guard(job_category, plan_steps)
 
     parsed_plan = []
     for s in safe_steps:
