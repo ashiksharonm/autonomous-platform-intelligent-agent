@@ -17,7 +17,7 @@ jobs:
       - name: Skip when the Space is not configured
         if: env.HF_TOKEN == '' || env.HF_SPACE == ''
         run: echo "HF_TOKEN or HF_SPACE not set; skipping deploy."
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         if: env.HF_TOKEN != '' && env.HF_SPACE != ''
       - name: Push bundle
         if: env.HF_TOKEN != '' && env.HF_SPACE != ''
