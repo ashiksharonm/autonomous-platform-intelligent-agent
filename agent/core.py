@@ -33,7 +33,7 @@ class PlannedJob:
     instruction: str
     task_type: str
     steps: list
-    decision: PlanDecision = None  # None when no policy is active
+    decision: PlanDecision | None = None  # None when no policy is active
 
     @property
     def plan_text(self):
@@ -152,6 +152,33 @@ def _gate_report(job, outcome):
     )
 
 
+AWAITING_APPROVAL, RUN = "awaiting_approval", "run"
+
+
+def gate(job, *, dry_run=False, audit=None):
+    """Decide what happens to a planned job: BLOCKED, DRY_RUN, AWAITING_APPROVAL or RUN."""
+    decision = job.decision
+    if decision is not None and not decision.allowed:
+        if audit:
+            audit.append(job.request_id, "blocked", reasons=decision.plan_reasons)
+        return BLOCKED
+    if dry_run:
+        if audit:
+            audit.append(job.request_id, "dry_run")
+        return DRY_RUN
+    if decision is not None and decision.needs_approval:
+        return AWAITING_APPROVAL
+    return RUN
+
+
+def record_approval(job, approved, by, audit=None):
+    """Audit the human decision; returns who approved (None when rejected)."""
+    who = by if approved else None
+    if audit:
+        audit.append(job.request_id, "approval", approved=bool(approved), by=who)
+    return who
+
+
 def start_agent_job(user_command, *, policy=None, approver=None, dry_run=False, audit=None, request_id=None):
     """Plan, gate, and (if permitted) execute an instruction.
 
@@ -162,24 +189,13 @@ def start_agent_job(user_command, *, policy=None, approver=None, dry_run=False, 
                         (no approver means reject: the gate fails closed)
     """
     job = plan_job(user_command, policy=policy, audit=audit, request_id=request_id)
-    decision = job.decision
+    action = gate(job, dry_run=dry_run, audit=audit)
+    if action in (BLOCKED, DRY_RUN):
+        return _gate_report(job, action)
     approved_by = None
-    if decision is not None:
-        if not decision.allowed:
-            if audit:
-                audit.append(job.request_id, "blocked", reasons=decision.plan_reasons)
-            return _gate_report(job, BLOCKED)
-        if dry_run:
-            if audit:
-                audit.append(job.request_id, "dry_run")
-            return _gate_report(job, DRY_RUN)
-        if decision.needs_approval:
-            approved = bool(approver(job)) if approver else False
-            approved_by = getattr(approver, "name", "human") if approved else None
-            if audit:
-                audit.append(job.request_id, "approval", approved=approved, by=approved_by)
-            if not approved:
-                return _gate_report(job, REJECTED)
-    elif dry_run:
-        return _gate_report(job, DRY_RUN)
+    if action == AWAITING_APPROVAL:
+        approved = bool(approver(job)) if approver else False
+        approved_by = record_approval(job, approved, getattr(approver, "name", "human"), audit)
+        if not approved:
+            return _gate_report(job, REJECTED)
     return execute_job(job, audit=audit, approved_by=approved_by)

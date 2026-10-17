@@ -1,0 +1,9 @@
+# docker compose up -> http://localhost:7860 (mock GitHub, keyword planner; no keys needed)
+services:
+  demo:
+    build: .
+    ports: ["7860:7860"]
+    environment:
+      LLM_PROVIDER: ${LLM_PROVIDER:-mock}      # mock | gemini | groq (free tiers)
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      GROQ_API_KEY: ${GROQ_API_KEY:-}
