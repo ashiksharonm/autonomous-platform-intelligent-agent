@@ -33,9 +33,14 @@ class FinalReport:
     step_results: list
     total_api_calls: int
     total_latency_ms: int
+    request_id: str = None
+    plan_text: str = None  # dry-run plan with policy verdicts, set when a policy is active
 
     def to_text(self):
         text_lines = []
+        if self.plan_text:
+            text_lines.append(self.plan_text)
+            text_lines.append("")
         text_lines.append("Run " + self.run_id + " — task_type=" + self.task_type)
         text_lines.append("Instruction: " + self.instruction)
         text_lines.append("Outcome: " + self.outcome)

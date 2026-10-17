@@ -1,0 +1,31 @@
+# Policy gate evaluated before any write. Anything not allowed here is refused.
+version: 1
+
+# fnmatch patterns for owner/repo that the agent may touch.
+allowed_repos:
+  - "demo/sandbox-repo"
+  - "ashiksharonm/*"
+
+allowed_ops:
+  - create_issue
+  - ensure_label_exists
+  - add_labels_to_issue
+  - comment_on_issue
+  - find_stale_labeled_issues
+
+# Ops that only read; they do not count toward the blast radius.
+read_only_ops:
+  - find_stale_labeled_issues
+
+# Maximum number of write steps one plan may contain (hard stop above this).
+max_blast_radius: 4
+
+# More write steps than this still runs, but only after a human approves.
+approve_above: 2
+
+# Ops that always need a human, regardless of plan size.
+require_approval:
+  - comment_on_issue
+
+# LLM-written code: deny | require_approval | allow
+synthesized_code: require_approval
