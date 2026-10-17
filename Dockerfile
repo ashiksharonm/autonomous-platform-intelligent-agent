@@ -1,10 +1,10 @@
 # Policy-gated agent demo (Gradio, mock GitHub, no secrets needed).
-FROM python:3.11-slim AS build
+FROM python:3.14-slim AS build
 WORKDIR /w
 COPY requirements.txt requirements-app.txt ./
 RUN pip install --no-cache-dir --prefix=/install -r requirements-app.txt
 
-FROM python:3.11-slim
+FROM python:3.14-slim
 ENV PYTHONUNBUFFERED=1 PORT=7860 GITHUB_MODE=mock
 RUN useradd --create-home --uid 10001 agent
 WORKDIR /app
