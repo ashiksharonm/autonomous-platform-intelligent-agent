@@ -2,9 +2,59 @@
 
 [![CI](https://github.com/ashiksharonm/autonomous-platform-intelligent-agent/actions/workflows/ci.yml/badge.svg)](https://github.com/ashiksharonm/autonomous-platform-intelligent-agent/actions/workflows/ci.yml)
 
-An agent that turns a natural-language instruction into GitHub API operations, runs them, and stores what it learns (failure constraints, working plans, synthesized capabilities) so that later runs of the same kind of task make fewer calls.
+An agent that turns a natural-language instruction into GitHub API operations, with a **policy-as-code safety gate** in front of every write: a YAML policy (allowed repos and ops, maximum blast radius, ops that need a human) is evaluated against the whole plan before anything runs, then dry-run output, an approval step, and an append-only, hash-chained JSONL audit log with request ids. The agent also stores what it learns (failure constraints, working plans, synthesized capabilities) so later runs of the same kind of task make fewer calls.
 
-Built as a take-home exercise; extended afterwards (sandbox hardening, accounting fixes, an offline test harness and CI).
+Built as a take-home exercise; extended afterwards (sandbox hardening, accounting fixes, offline harness, CI, and the policy gate). Design: [docs/DESIGN.md](docs/DESIGN.md).
+
+```mermaid
+flowchart LR
+  I[Instruction] --> P[Planner<br/>Groq / Gemini / mock] --> G{Policy gate<br/>policy.yaml}
+  G -->|deny| B[Blocked, nothing runs]
+  G -->|dry-run| D[Plan + verdicts only]
+  G -->|needs approval| H{Human}
+  H -->|yes| E
+  G -->|allow| E[Execute on GitHub]
+  G -.-> L[(audit.jsonl)]
+  H -.-> L
+  E -.-> L
+```
+
+## Policy gate
+
+```yaml
+# policies/default.yaml (abridged)
+allowed_repos: ["demo/sandbox-repo", "ashiksharonm/*"]
+allowed_ops: [create_issue, ensure_label_exists, add_labels_to_issue, comment_on_issue, find_stale_labeled_issues]
+read_only_ops: [find_stale_labeled_issues]   # not counted as writes
+max_blast_radius: 4        # more write steps than this: denied
+approve_above: 2           # more than this: needs a human
+require_approval: [comment_on_issue]
+synthesized_code: require_approval   # LLM-written code: deny | require_approval | allow
+```
+
+```bash
+python main.py run "Create 6 issues titled 'Spam'" --policy policies/default.yaml      # exit 3: blocked
+python main.py run "Comment on issue #1 saying 'hi'" --policy policies/default.yaml    # asks y/N (or --yes)
+python main.py run "..." --policy policies/default.yaml --dry-run                      # plan only
+python main.py verify-audit data/audit.jsonl                                           # hash chain check
+```
+
+Verdicts for the hosted demo's sample prompts (asserted in `tests/test_demo_service.py`):
+
+| Prompt | Verdict | Why |
+|---|---|---|
+| Create an issue titled 'Fix login bug' with label 'bug' | allow | 1 write, allowed op |
+| Comment on issue #1 saying 'Looking into this' | needs approval | `comment_on_issue` in `require_approval` |
+| Create 6 issues titled 'Spam' | deny | 6 writes > `max_blast_radius` 4 |
+| Close all issues in the repo | deny | `close_all_issues` not in `allowed_ops` |
+| Generate this week's triage summary | needs approval | LLM-synthesized code |
+| Find stale issues labeled 'bug' | allow | read-only |
+
+The gate decides on the whole plan, so a denied plan executes nothing, not even its read steps. It fails closed: a malformed policy exits 2 without running, unknown ops count as writes, and a missing approver means reject. It is plan-level policy, not a sandbox: an allowed write still does what the token can do, and the audit log can detect edits or removal in the middle but not truncation of the newest lines.
+
+**Free hosted demo:** a Gradio app (`app.py`) runs the gate over an in-memory mock GitHub with a keyword planner (not an LLM), so no token or key is needed. Run it locally with `python app.py` or `docker compose up` (port 7860). `.github/workflows/deploy-space.yml` pushes it to a Hugging Face Space once `HF_TOKEN` (secret) and `HF_SPACE` (variable) are set; no public URL is live yet.
+
+**LLM providers (free options):** `LLM_PROVIDER=auto` uses Groq if `GROQ_API_KEY` is set, else Gemini if `GEMINI_API_KEY` is set, else the deterministic mock. The Gemini path is covered by a request-shape unit test only; it has not been run against the live API.
 
 ## Demo (offline, recorded)
 
@@ -78,8 +128,8 @@ Offline. No keys needed; this is what CI runs:
 
 ```
 python -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt ruff
-ruff check . && pytest -q                       # 64 tests
+pip install -r requirements-dev.txt
+ruff check . && pytest -q                       # 114 tests
 python scripts/offline_learning_demo.py         # regenerates results/
 ```
 
@@ -94,6 +144,15 @@ python main.py show-capabilities
 
 Memory lives in `data/agent_memory.sqlite` and is never wiped automatically. `scripts/reset_demo_repo.py` closes **every** open issue on `GITHUB_REPO`. It's a demo cleanup tool and isn't part of the agent.
 
+Try the gate with no keys at all:
+
+```
+GITHUB_MODE=mock LLM_PROVIDER=mock python main.py run "Create an issue titled 'Hi' with label 'bug'" --policy policies/default.yaml
+python app.py                                   # Gradio demo on :7860
+```
+
+In mock mode each CLI process starts with a fresh fake repo; the demo app keeps one per process.
+
 ## Running LLM-generated code: threat model
 
 Synthesized capabilities are Python written by the LLM and executed by the agent. The defences are layered and best-effort ([`agent/sandbox.py`](agent/sandbox.py)):
@@ -105,6 +164,10 @@ Synthesized capabilities are Python written by the LLM and executed by the agent
 **In-process Python sandboxing is not a security boundary.** The code also receives a live, authenticated PyGithub `repo`, so it can do anything that token can do on GitHub. This setup is meant for one user running their own agent against their own scratch repo. For anything else, run the agent (or at least the runner) in a container or VM with no host filesystem access and network egress limited to `api.github.com`. The regression tests in `tests/test_synthesis_sandbox.py` cover the escapes that are known to have worked, among them the `getattr(getattr(params, "__class__"), "__mro__")` chain that previously reached `object.__subclasses__()`.
 
 ## Limitations / not measured
+
+- **Policy gate:** tested with a mock GitHub and a keyword planner; it has not been exercised against live GitHub or a live model. The keyword planner only understands the sample instruction shapes.
+- Blast radius counts write steps, not how much one step touches (for example a synthesized function that edits many issues); that is why synthesized code defaults to needing approval.
+- The Docker image could not be built on the author's machine (no running Docker daemon at the time); the CI `docker` job builds it and probes `/healthz`.
 
 - **No live runs in this revision.** There were no Groq or GitHub keys, and live writes were deliberately avoided. Every LLM response in tests and the demo is scripted. The synthesized triage function in `agent/fake_github.py` was written by hand to stand in for model output; it is not a recorded response.
 - **The 422-on-missing-label premise is unverified.** The fake rejects `POST /issues` with an unknown label, which is the assumption the agent was designed around. Real GitHub may instead auto-create the label for users with push access, in which case the constraint-learning path never triggers for this task.

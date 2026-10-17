@@ -28,7 +28,8 @@ class SynthesisError(Exception):
 
 def execute_capability(source, params):
     """Run synthesized `source` against the configured repo, honouring SANDBOX_MODE."""
-    if config.SANDBOX_MODE == "inprocess":
+    # Mock GitHub objects live in this process, so the subprocess runner cannot reach them.
+    if config.SANDBOX_MODE == "inprocess" or config.GITHUB_MODE == "mock":
         return sandbox.load_run_function(source)(github_tools.fetch_my_repo(), params)
     return sandbox.run_in_subprocess(source, params)
 

@@ -17,9 +17,53 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
           cache: pip
-      - run: pip install -r requirements.txt ruff
-      - run: ruff check .
-      - run: pytest -q
+      - run: pip install -r requirements-dev.txt
+      - name: Lint
+        run: ruff check .
+      - name: Typecheck (policy gate, service, core)
+        run: mypy agent/policy agent/mock_llm.py agent/demo_service.py agent/log.py agent/models.py agent/core.py --ignore-missing-imports
+      - name: Tests with coverage
+        run: pytest -q --cov=agent --cov-report=term --cov-report=xml
+      - name: Coverage summary
+        run: |
+          python - <<'PY' >> "$GITHUB_STEP_SUMMARY"
+          import xml.etree.ElementTree as ET
+          rate = float(ET.parse('coverage.xml').getroot().get('line-rate'))
+          print(f"### Line coverage (py${{ matrix.python-version }}): {rate:.1%}")
+          PY
       - name: Offline learning-loop demo (no network, no API keys)
         run: |
           python scripts/offline_learning_demo.py --no-write
+      - name: Policy gate CLI smoke (mock GitHub, mock planner)
+        env:
+          GITHUB_MODE: mock
+          LLM_PROVIDER: mock
+          AGENT_DB_PATH: ${{ runner.temp }}/smoke.sqlite
+        run: |
+          python main.py run "Create an issue titled 'Hi' with label 'bug'" --policy policies/default.yaml --audit-log "$RUNNER_TEMP/a.jsonl" 2>/dev/null
+          set +e
+          python main.py run "Close all issues in the repo" --policy policies/default.yaml --audit-log "$RUNNER_TEMP/a.jsonl" 2>/dev/null
+          test $? -eq 3
+          python main.py verify-audit "$RUNNER_TEMP/a.jsonl"
+
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          load: true
+          tags: policy-agent:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      - name: Container serves /healthz as non-root
+        run: |
+          docker run -d --name pa -p 7860:7860 policy-agent:ci
+          for i in $(seq 1 60); do curl -sf http://localhost:7860/healthz && break; sleep 1; done
+          curl -sf http://localhost:7860/healthz
+          test "$(docker exec pa id -u)" != "0"
+      - name: Container log on failure
+        if: failure()
+        run: docker logs pa

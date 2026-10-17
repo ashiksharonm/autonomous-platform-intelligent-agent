@@ -1,0 +1,28 @@
+# Pushes the demo to a Hugging Face Space when HF_TOKEN and HF_SPACE are configured.
+# Without them this workflow skips; it never creates accounts or Spaces.
+#   HF_TOKEN  (secret)    write token for your HF account
+#   HF_SPACE  (variable)  e.g. your-username/policy-gated-agent  (create the Space first, SDK = Gradio)
+name: Deploy HF Space
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      HF_TOKEN: ${{ secrets.HF_TOKEN }}
+      HF_SPACE: ${{ vars.HF_SPACE }}
+    steps:
+      - name: Skip when the Space is not configured
+        if: env.HF_TOKEN == '' || env.HF_SPACE == ''
+        run: echo "HF_TOKEN or HF_SPACE not set; skipping deploy."
+      - uses: actions/checkout@v4
+        if: env.HF_TOKEN != '' && env.HF_SPACE != ''
+      - name: Push bundle
+        if: env.HF_TOKEN != '' && env.HF_SPACE != ''
+        run: |
+          mkdir bundle && cp -r agent policies app.py bundle/ && cp space/README.md space/requirements.txt bundle/
+          cd bundle && git init -q -b main && git add -A
+          git -c user.name=ci -c user.email=ci@users.noreply.github.com commit -qm "Deploy ${GITHUB_SHA::7}"
+          git push -f "https://user:${HF_TOKEN}@huggingface.co/spaces/${HF_SPACE}" main

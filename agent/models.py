@@ -6,9 +6,9 @@ class JobStep:
     op_name: str
     params: dict
     blocking: bool = True
-    capability_request: str = None
-    requested_op_name: str = None
-    param_schema: dict = None
+    capability_request: str | None = None
+    requested_op_name: str | None = None
+    param_schema: dict | None = None
 
 
 @dataclass
@@ -17,9 +17,9 @@ class StepOutcome:
     status: str
     api_calls: int = 0
     latency_ms: int = 0
-    error_class: str = None
-    error_message: str = None
-    agent_decision: str = None
+    error_class: str | None = None
+    error_message: str | None = None
+    agent_decision: str | None = None
     artifacts: dict = field(default_factory=dict)
 
 
@@ -33,9 +33,14 @@ class FinalReport:
     step_results: list
     total_api_calls: int
     total_latency_ms: int
+    request_id: str | None = None
+    plan_text: str | None = None  # dry-run plan with policy verdicts, set when a policy is active
 
     def to_text(self):
         text_lines = []
+        if self.plan_text:
+            text_lines.append(self.plan_text)
+            text_lines.append("")
         text_lines.append("Run " + self.run_id + " — task_type=" + self.task_type)
         text_lines.append("Instruction: " + self.instruction)
         text_lines.append("Outcome: " + self.outcome)

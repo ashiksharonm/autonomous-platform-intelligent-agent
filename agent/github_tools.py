@@ -2,7 +2,8 @@ from datetime import datetime, timezone
 
 from github import Auth, Github, GithubException
 
-from agent.config import DEFAULT_STALE_DAYS, GITHUB_REPO, GITHUB_TOKEN
+from agent import config
+from agent.config import DEFAULT_STALE_DAYS, GITHUB_TOKEN
 
 _client = None
 _repo = None
@@ -11,7 +12,12 @@ _repo = None
 def create_gh_session():
     global _client
     if _client is None:
-        _client = Github(auth=Auth.Token(GITHUB_TOKEN))
+        if config.GITHUB_MODE == "mock":
+            from agent.fake_github import seeded_demo_github
+
+            _client = seeded_demo_github()
+        else:
+            _client = Github(auth=Auth.Token(GITHUB_TOKEN))
     return _client
 
 
@@ -19,7 +25,7 @@ def fetch_my_repo():
     """Return the target Repository, fetching it (one GET /repos call) once per process."""
     global _repo
     if _repo is None:
-        _repo = create_gh_session().get_repo(GITHUB_REPO)
+        _repo = create_gh_session().get_repo(config.effective_repo())
     return _repo
 
 

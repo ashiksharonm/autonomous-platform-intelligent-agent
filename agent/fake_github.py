@@ -25,10 +25,24 @@ class FakeIssue:
     labels: list
     updated_at: datetime
     state: str = "open"
+    gh: object = field(default=None, repr=False)
 
     @property
     def html_url(self):
         return f"https://github.invalid/fake/repo/issues/{self.number}"
+
+    def add_to_labels(self, *names):
+        self.gh._call("POST /issues/{number}/labels")
+        for name in names:
+            if name not in {label.name for label in self.labels}:
+                self.labels.append(SimpleNamespace(name=name))
+            self.gh.labels.add(name)
+        self.updated_at = datetime.now(timezone.utc)
+
+    def create_comment(self, body):
+        self.gh._call("POST /issues/{number}/comments")
+        self.updated_at = datetime.now(timezone.utc)
+        return SimpleNamespace(id=len(self.gh.calls), body=body)
 
 
 @dataclass
@@ -60,10 +74,21 @@ class FakeGitHub:
             body="",
             labels=[SimpleNamespace(name=name) for name in labels],
             updated_at=datetime.now(timezone.utc) - timedelta(days=days_since_update),
+            gh=self,
         )
         self.labels.update(labels)
         self.issues.append(issue)
         return issue
+
+
+def seeded_demo_github():
+    """Fake repo with a few issues, used by GITHUB_MODE=mock (hosted demo, local try-out)."""
+    gh = FakeGitHub()
+    gh.seed_issue("Login fails on Safari", ["bug"], days_since_update=30)
+    gh.seed_issue("Typo in the install docs", ["docs"], days_since_update=2)
+    gh.seed_issue("Crash when saving empty form", ["bug"], days_since_update=21)
+    gh.seed_issue("Add dark mode", ["enhancement"], days_since_update=45)
+    return gh
 
 
 class FakeRepo:
@@ -94,6 +119,7 @@ class FakeRepo:
             body=body,
             labels=[SimpleNamespace(name=name) for name in labels],
             updated_at=datetime.now(timezone.utc),
+            gh=self._gh,
         )
         self._gh.issues.append(issue)
         return issue
